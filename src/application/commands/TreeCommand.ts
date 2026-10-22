@@ -1,0 +1,15 @@
+import type { Editor } from '../Editor.js';
+import type { CommandArgs } from '../CommandArgs.js';
+import { Command } from './Command.js';
+
+export class TreeCommand extends Command {
+  readonly #args: CommandArgs;
+  constructor(args: CommandArgs) {
+    super();
+    args.expect(0, 1);
+    this.#args = args;
+  }
+  override async execute(editor: Editor): Promise<string[]> {
+    return editor.tree(this.#args.optional(0));
+  }
+}

@@ -1,0 +1,14 @@
+# macOS
+.DS_Store
+
+# Node.js dependencies and generated output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+# Local environment configuration
+.env
+.env.*
+!.env.example

@@ -1,0 +1,21 @@
+@startuml
+title SVG CLI 模块依赖方向
+skinparam componentStyle rectangle
+component "组合入口\nmain.ts" as Main
+component "交互与显示\npresentation" as UI
+component "用例、命令与历史\napplication" as App
+component "抽象接口\napplication/ports" as Ports
+component "图形与文档模型\ndomain" as Domain
+component "文件与 XML\ninfrastructure" as Infra
+Main --> UI
+Main --> App
+Main --> Infra
+UI --> App
+UI --> Domain : 只读展示
+App --> Ports
+App --> Domain
+Ports --> Domain
+UI ..|> Ports : 实现解析和展示接口
+Infra ..|> Ports : 实现仓储接口
+Infra --> Domain
+@enduml

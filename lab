@@ -1,0 +1,45 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")"
+
+# Use a normal Node installation, or the runtime bundled with Codex on this Mac.
+if command -v node >/dev/null 2>&1; then
+  node_bin="$(command -v node)"
+else
+  node_bin="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
+fi
+if [ ! -x "$node_bin" ]; then
+  printf '%s\n' 'Please install Node.js 22 or newer, then run npm install.' >&2
+  exit 1
+fi
+export PATH="$(dirname "$node_bin"):$PATH"
+
+task="${1:-cli}"
+case "$task" in
+  install)
+    if command -v npm >/dev/null 2>&1; then
+      exec npm install
+    fi
+    pnpm_bin="$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback/pnpm"
+    if [ ! -x "$pnpm_bin" ]; then
+      printf '%s\n' 'Please install npm, then run npm install.' >&2
+      exit 1
+    fi
+    exec "$pnpm_bin" install --frozen-lockfile --store-dir /private/tmp/svg-editor-pnpm-store
+    ;;
+  build|typecheck|cli|test|check)
+    if [ ! -f node_modules/typescript/bin/tsc ]; then
+      printf '%s\n' 'Dependencies are missing. Run ./lab install first.' >&2
+      exit 1
+    fi
+    if [ "$task" = typecheck ]; then
+      exec "$node_bin" node_modules/typescript/bin/tsc -p tsconfig.json --noEmit
+    fi
+    "$node_bin" node_modules/typescript/bin/tsc -p tsconfig.json
+    case "$task" in
+      cli) exec "$node_bin" dist/src/main.js ;;
+      test|check) exec "$node_bin" --test dist/tests/*.test.js ;;
+    esac
+    ;;
+  *) printf '%s\n' 'Usage: ./lab [install|build|typecheck|cli|test|check]' >&2; exit 1 ;;
+esac

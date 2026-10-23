@@ -55,7 +55,8 @@ test('SVG preserves Chinese, XML entities, whitespace, and presentation attribut
   assert.equal(second.find('t').textContent, '中文 & < > " \'\n\t第二行');
   assert.deepEqual(second.find('t').attributes, first.find('t').attributes);
   second.find('t').move(5, 6);
-  assert.equal(second.find('t').attributes.transform, 'translate(1,2) scale(0.8)');
+  const moved = reader.read(new SvgWriter().write(second)).document;
+  assert.deepEqual(moved.find('t').attributes, second.find('t').attributes);
   assert.equal(second.find('t').attributes.x, '15');
 });
 

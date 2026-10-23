@@ -1,4 +1,6 @@
 import type { ContainerShape } from './ContainerShape.js';
+import { TransformOperations } from './TransformOperations.js';
+import { XmlCharacters } from './XmlCharacters.js';
 
 /** An addressable SVG node. Geometry and relationships are encapsulated. */
 export abstract class Shape {
@@ -20,6 +22,7 @@ export abstract class Shape {
     yFields: readonly string[],
     attributes: Readonly<Record<string, string>> = {},
   ) {
+    XmlCharacters.assertValid(id);
     if (!id || /[\s<>"'&=]/u.test(id)) throw new Error(`invalid id: ${id}`);
     this.#id = id;
     this.#type = type;
@@ -29,6 +32,8 @@ export abstract class Shape {
     this.#yFields = yFields;
     for (const key of geometry) this.#values[key] = '0';
     for (const [key, value] of Object.entries(attributes)) {
+      XmlCharacters.assertValid(key);
+      XmlCharacters.assertValid(value);
       if (key === 'id') continue;
       if (geometry.includes(key) || ['fill', 'stroke', 'stroke-width'].includes(key)) {
         this.set(key, value);
@@ -58,17 +63,23 @@ export abstract class Shape {
   move(dx: number, dy: number): void {
     this.requireFinite(dx, 'dx');
     this.requireFinite(dy, 'dy');
-    this.applyGeometry((shape, key, value) =>
-      value + (shape.#xFields.includes(key) ? dx : shape.#yFields.includes(key) ? dy : 0));
+    this.applyGeometry(
+      (shape, key, value) => value + (shape.#xFields.includes(key) ? dx : shape.#yFields.includes(key) ? dy : 0),
+      original => TransformOperations.moved(original, dx, dy),
+    );
   }
 
   scale(factor: number): void {
     if (!Number.isFinite(factor) || factor <= 0) throw new Error('scale factor must be positive');
-    this.applyGeometry((_shape, _key, value) => value * factor);
+    this.applyGeometry(
+      (_shape, _key, value) => value * factor,
+      original => TransformOperations.scaled(original, factor),
+    );
   }
 
   set(attribute: string, value: string): void {
     if (this.#geometry.includes(attribute) || attribute === 'stroke-width') {
+      XmlCharacters.assertValid(value);
       const number = this.parseNumber(value, attribute);
       if ((attribute === 'stroke-width' || this.#nonNegative.includes(attribute)) && number < 0) {
         throw new Error(`${attribute} must be non-negative`);
@@ -77,6 +88,7 @@ export abstract class Shape {
       return;
     }
     if (attribute === 'fill' || attribute === 'stroke') {
+      XmlCharacters.assertValid(value);
       this.#values[attribute] = value;
       return;
     }
@@ -110,18 +122,25 @@ export abstract class Shape {
     if (!Number.isFinite(value)) throw new Error(`${name} must be a finite number`);
   }
 
-  /** Prepare every descendant's values first: overflow cannot leave a partial edit. */
-  private applyGeometry(transform: (shape: Shape, key: string, value: number) => number): void {
-    const changes: Array<{ shape: Shape; key: string; value: number }> = [];
+  /** Prepare geometry and conjugate transforms first: a failed edit is atomic. */
+  private applyGeometry(
+    transform: (shape: Shape, key: string, value: number) => number,
+    transformAttribute: (original: string) => string,
+  ): void {
+    const changes: Array<{ shape: Shape; key: string; value: string }> = [];
     const visit = (shape: Shape): void => {
       for (const key of shape.#geometry) {
         const value = transform(shape, key, Number(shape.#values[key]));
         this.requireFinite(value, key);
-        changes.push({ shape, key, value });
+        changes.push({ shape, key, value: String(value) });
+      }
+      const original = shape.#values.transform;
+      if (original !== undefined) {
+        changes.push({ shape, key: 'transform', value: transformAttribute(original) });
       }
       for (const child of shape.children) visit(child);
     };
     visit(this);
-    for (const change of changes) change.shape.#values[change.key] = String(change.value);
+    for (const change of changes) change.shape.#values[change.key] = change.value;
   }
 }

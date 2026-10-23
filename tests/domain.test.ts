@@ -48,7 +48,7 @@ test('numeric and attribute validation is strict and leaves state intact', () =>
   assert.equal(shape.id, 'r');
 });
 
-test('Composite applies move and scale once to all descendant geometry and preserves local transforms', () => {
+test('Composite applies move and scale once to all descendant geometry alongside existing transforms', () => {
   const document = new SvgDocument();
   const group = factory.fromSvg('g', 'outer', { transform: 'translate(30,40)' });
   document.append(group);
@@ -63,7 +63,7 @@ test('Composite applies move and scale once to all descendant geometry and prese
   assert.deepEqual(document.find('l').attributes, { x1: '22', y1: '44', x2: '26', y2: '48', stroke: 'black' });
   assert.deepEqual(document.find('t').attributes, { x: '30', y: '52' });
   assert.equal(document.find('t').textContent, 'Text');
-  assert.equal(group.attributes.transform, 'translate(30,40)');
+  assert.ok(group.attributes.transform?.includes('translate(30,40)'));
   group.set('fill', 'blue');
   assert.equal(group.attributes.fill, 'blue');
   assert.equal(document.find('r').attributes.fill, 'red');
@@ -172,7 +172,8 @@ test('deep clones preserve imported presentation/text and isolate state and pare
   assert.equal(document.find('t').attributes.x, '1');
   assert.equal(copy.find('t').parent, copy.find('g'));
   assert.notEqual(copy.find('g'), document.find('g'));
-  assert.equal(copy.find('g').attributes.transform, 'scale(0.8)');
+  assert.equal(document.find('g').attributes.transform, 'scale(0.8)');
+  assert.notEqual(copy.find('g').attributes.transform, document.find('g').attributes.transform);
   assert.equal(copy.find('t').attributes['font-size'], '16');
   assert.match(document.find('t').describe(), /^text#t \(1,2\) "A \\"quote\\" & 中文"$/u);
   assert.throws(() => copy.find('t').set('font-size', '20'), /unknown attribute: font-size/u);

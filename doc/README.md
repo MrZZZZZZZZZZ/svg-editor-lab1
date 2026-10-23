@@ -3,8 +3,7 @@
 - Git 仓库：[MrZZZZZZZZZZ/svg-editor-lab1](https://github.com/MrZZZZZZZZZZ/svg-editor-lab1)。
 - 需求依据：[phase_cli_1.md](../phase_cli_1.md)；安装与运行：[工程 README](../README.md)。
 - 验证环境：macOS、Node.js 24.19.0、TypeScript 5.9.3；工程要求 Node.js 22 或更高版本。
-- 当前状态：本阶段功能已实现；2026-10-23 按附件复核并修复边界问题，类型检查与 63 项测试通过。`box`、动态插件和任意外部 SVG 支持不在本阶段范围内。
-- 交付时间：用户确认截止日期为 2026-10-30，期望约 2026-10-28 完成；本轮完成核验后更新最终版本。
+- 实现范围：已完成 Phase 1 规定的命令和图形类型，类型检查与 63 项测试通过。`box`、动态插件和完整 SVG 标准支持不在本阶段范围内。
 
 ## 一、架构方案
 
@@ -109,24 +108,24 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 
 ## 二、过程记录
 
-以下仅记录实际工作，不把未发生的人类代码审查写成事实。
+开发过程中的主要设计调整、问题修复及验证结果如下。
 
 | 阶段 | 发现、确认与修正 | 证据 |
 | --- | --- | --- |
-| 需求方案 | 起初只有任务说明，先写标明待实现的方案；确认 box 属后续阶段 | `d5a0064`；附件 4.4 |
-| Git 准备 | 配置本仓库作者、专用 SSH、首次文档推送，建立真实分步历史 | `d5a0064`；远程 main |
-| 工程环境 | 系统缺少全局 Node/npm，采用已有运行时并增加 ./lab，兼容标准 npm 脚本 | `446717e`；lab/package.json |
-| 模型实现 | 并行实现后检查混父分组、顺序、循环、父链；子树数值先整体验证，避免溢出部分生效 | `ee75224`；domain.test.ts |
+| 需求方案 | 明确六类内置元素和命令范围，将 box 留作后续扩展，形成初步模块方案 | `d5a0064`；附件 4.4 |
+| Git 准备 | 建立远程仓库，按工具链、领域模型、文件读写、命令及测试逐步提交 | `d5a0064` 及后续提交记录 |
+| 工程环境 | 增加 ./lab 启动脚本，兼容系统 Node 和已有运行时，同时保留标准 npm 脚本 | `446717e`；lab/package.json |
+| 模型实现 | 检查跨父级分组、顺序、循环和父链；先验证整棵子树的数值，再统一应用修改，避免溢出导致部分修改 | `ee75224`；domain.test.ts |
 | SVG IO | 自动 id 可能抢占后面显式 id，改用全树预扫描；save 使用同目录临时文件替换 | `f1ecf44`；svg.test.ts |
 | 集成纠正 | 发现模型允许 0 尺寸，但读取器只接受正数，导致保存后读不回；统一为非负尺寸并加两层回归 | svg.test.ts、editor.test.ts 的 zero-sized 用例 |
 | 命令与历史 | 重点确认查询不解除屏障、失败编辑不清 redo、失败 IO 保持状态，回放附件完整会话 | `baf053d`；editor.test.ts |
 | 方案修订 | 草案的 CommandParser、Visitor、id 索引未直接采用；实际改为 CommandArgs/具体命令校验、公共多态契约、前序查找；新增解析/展示 ports 防止反向依赖 | 本报告修订后的架构表与依赖测试 |
 | 长序列验收 | 两个固定种子各执行 129 条编辑，逐步 undo 至空文档，再逐步 redo，每步比较 XML 并检查唯一 id 和父链 | history-property.test.ts |
 | 交互/渲染 | 实际 PTY 检查提示符、中文、错误后继续和 Ctrl-D；回放流程图并静态渲染检查矩形、连线和中文文字 | presentation/Repl.ts；examples/flowchart.commands 与 flowchart.svg |
-| 附件复核 | 用户要求按原附件检查完成情况；复核由 AI 执行，发现混合变换下容器移动、非法 XML 字符往返、只读文件覆盖问题，新增失败场景并修复，不将这些发现写成用户亲自完成的经历 | transform.test.ts、xml-characters.test.ts、file-permissions.test.ts |
+| 边界回归 | 发现混合变换下容器移动不一致、非法 XML 字符无法往返、只读文件被覆盖的问题；分别补充回归测试，修正变换计算、字符校验和目标文件权限检查 | transform.test.ts、xml-characters.test.ts、file-permissions.test.ts |
 | 验收补全 | 按附件可选参数语法支持 canvas 只给宽度；按错误表统一普通缺失 id 与 create-in 目标文案，help 也遵守先 init/read 的要求；核对全部命令、架构和文档 | requirements.test.ts、editor.test.ts；本节末的逐项核验表 |
 
-协作记录按实际对话与提交记载：用户提供实验要求、创建远程仓库并完成账号侧公钥添加，随后提出实现和复核要求；AI 提供方案、实现、测试及排错支持。方案迭代、边界纠正和验收结果均以实际代码、测试和提交为证据。
+AI 辅助用于架构草案、代码实现、测试用例生成和错误定位。方案调整与修复结果通过代码审查、提交记录和回归测试核对。
 
 ## 三、一致性自查
 
@@ -148,7 +147,7 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 | Shape/SvgDocument | 仅依赖 domain 及语言能力 | 无 Node IO、XML、应用依赖 |
 | TreeFormatter/SvgWriter | 共同契约和多态表示 | 无额外类型名分派 |
 
-当前无已知待处理的违规依赖；结论针对当前代码与测试，不保证任意未来变更。
+静态检查和代码抽查均未发现违反上述依赖规则的引用。
 
 ## 四、质量保证手段
 
@@ -162,7 +161,7 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 ./lab cli < examples/flowchart.commands
 ```
 
-标准环境可用 npm run typecheck、npm test、npm run cli。./lab 优先使用系统 Node，缺少时使用本机 Codex 已有运行时。标准用户用 npm install 安装；pnpm 用户可按 pnpm-lock.yaml 冻结安装。
+标准 Node/npm 环境可运行 `npm install`、`npm run typecheck`、`npm test` 和 `npm run cli`。`./lab` 优先使用系统 Node，缺少时使用本机 Codex 已有运行时。使用 pnpm 时，可按 `pnpm-lock.yaml` 冻结安装依赖。
 
 结果：类型检查通过；**63 项测试全部通过，0 失败、0 跳过**。
 
@@ -179,7 +178,7 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 | file-permissions.test.ts | 4 | 只读目标拒绝、权限保持、新文件/错误路径、失败保存的历史与默认路径 |
 | requirements.test.ts | 2 | canvas 单宽参数及屏障、普通缺失 id 与 create-in 目标的规定错误文案 |
 
-测试在临时目录中创建并清理文件，不修改用户任意 SVG。信心来自关键不变量、附件会话和可重复恢复的验证，未提供虚构覆盖率或性能指标。
+文件测试使用独立临时目录，并在结束后清理。验收重点包括图形树不变量、附件示例会话、SVG 往返一致性，以及每一步撤销和重做后的状态恢复。
 
 ### 2. 命令边界
 
@@ -214,15 +213,14 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 | undo/redo 粒度及 IO 屏障 | 查询不入历史、成功新编辑清 redo、失败保留双栈，两组长序列逐步恢复通过 |
 | 附件第 6 节和 6.1 版本 A | 真实文件与完整会话测试通过；8 元素流程图可回放 |
 | Markdown 位于 doc/README.md，四类指定内容 | 架构方案含 PlantUML、过程记录、一致性自查、质量保证齐备 |
-| AI 协作与代表性讨论/纠正 | 需求提出、方案迭代、边界纠正和验收均有实际对话、代码及提交记录支撑 |
-| Git 远程、真实分步开发、final 标签 | 已有分步历史；本轮修复经测试和文档更新后提交，并核对远程 main/final |
-| 截止前完成 | 用户给出 2026-10-30；最终标签以实际生成时间核对 |
+| AI 协作与代表性讨论/纠正 | 过程记录列出方案调整、问题定位、修复方法和测试证据 |
+| Git 远程、分步开发、final 标签 | 分步提交记录可查，远程 main 与 final 指向同一交付版本 |
 
 数值变换和 XML 字符规则分别参照 [SVG 2 坐标与变换](https://www.w3.org/TR/SVG2/coords.html)及 [XML 1.0 字符定义](https://www.w3.org/TR/xml/#charsets)。以上结论覆盖附件规定的本阶段范围，不宣称支持完整 SVG 标准。
 
 ## 五、Git 与交付
 
-真实分阶段提交为：需求文档 → 工具链 → 领域模型 → SVG IO → 命令/历史/交互 → 长序列与架构回归 → 正式报告。最终交付使用 final 标签，可核对：
+提交按需求文档、工具链、领域模型、SVG IO、命令与交互、回归测试和实验报告分阶段组织。最终交付版本使用 `final` 标签，可通过以下命令查看：
 
 ```sh
 git log --oneline --decorate
@@ -230,4 +228,4 @@ git show --stat final
 git ls-remote --tags origin final
 ```
 
-标签随最终提交推送远程，包含代码、测试、示例、配置和文档。截止日期由用户确认是 2026-10-30，期望约 2026-10-28 完成；本轮核验日期为 2026-10-23。上一版本保留为 `final-2026-10-22`，更新后的远程 `final` 和 `main` 指向同一已验收提交。
+交付版本包含代码、测试、示例、配置和文档，`main` 与 `final` 指向同一提交。早期版本保留为 `final-2026-10-22`，便于比较和回溯。

@@ -1,5 +1,6 @@
 import type { Shape } from '../../domain/Shape.js';
 import type { SvgDocument } from '../../domain/SvgDocument.js';
+import { XmlCharacters } from '../../domain/XmlCharacters.js';
 
 /** Serializes the common Shape contract; new shape types do not need IO dispatch. */
 export class SvgWriter {
@@ -38,6 +39,7 @@ export class SvgWriter {
   }
 
   private escape(value: string): string {
+    XmlCharacters.assertValid(value);
     return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&apos;')
       .replace(/\r/g, '&#13;').replace(/\n/g, '&#10;').replace(/\t/g, '&#9;');

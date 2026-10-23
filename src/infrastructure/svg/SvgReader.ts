@@ -2,6 +2,7 @@ import { DOMParser, type Element, type Node } from '@xmldom/xmldom';
 import type { SvgReadResult } from '../../application/ports/SvgRepository.js';
 import { ShapeFactory } from '../../domain/ShapeFactory.js';
 import { SvgDocument } from '../../domain/SvgDocument.js';
+import { XmlCharacters } from '../../domain/XmlCharacters.js';
 
 /** Strict XML input adapter. No browser DOM, script execution, DTD, or network IO. */
 export class SvgReader {
@@ -13,6 +14,7 @@ export class SvgReader {
 
   read(xml: string): SvgReadResult {
     const root = this.parse(xml);
+    this.validateDecodedCharacters(root);
     if (this.directText(root).trim()) throw new Error('invalid SVG: unexpected text in <svg>');
     const width = this.readDimension(root, 'width');
     const height = this.readDimension(root, 'height');
@@ -29,17 +31,28 @@ export class SvgReader {
   }
 
   private parse(xml: string): Element {
-    const declarations = xml.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+    const declarations = xml.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>/g, '');
     if (/<!\s*(?:DOCTYPE|ENTITY)\b/i.test(declarations)) {
       throw new Error('invalid SVG: DOCTYPE and entity declarations are not supported');
     }
-    if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF\p{Cs}]/u.test(xml)) {
-      throw new Error('invalid SVG: invalid XML character');
+    this.assertXmlCharacters(xml);
+    // xmldom can truncate an out-of-range reference into a valid, different character.
+    // Inspect reference values before decoding; comments/CDATA/PIs contain literal text.
+    for (const reference of declarations.matchAll(/&#(?:x([0-9a-fA-F]+)|([0-9]+));/g)) {
+      const codePoint = Number.parseInt(reference[1] ?? reference[2]!, reference[1] === undefined ? 10 : 16);
+      if (!Number.isFinite(codePoint) || codePoint > 0x10FFFF) {
+        throw new Error('invalid SVG: invalid XML character');
+      }
+      this.assertXmlCharacters(String.fromCodePoint(codePoint));
     }
     let root: Element | null;
     try {
       const parsed = new DOMParser({
-        onError: (_level, message) => { throw new Error(message); },
+        onError: (level, message) => {
+          // U+FFFD itself is legal XML; xmldom's encoding guess must not reject it.
+          if (level === 'warning' && message === 'Unicode replacement character detected, source encoding issues?') return;
+          throw new Error(message);
+        },
       }).parseFromString(xml, 'application/xml');
       root = parsed.documentElement;
       for (let node = parsed.firstChild; node; node = node.nextSibling) {
@@ -55,6 +68,24 @@ export class SvgReader {
       throw new Error('invalid SVG: root element must be <svg>');
     }
     return root;
+  }
+
+  private assertXmlCharacters(value: string): void {
+    try { XmlCharacters.assertValid(value); }
+    catch { throw new Error('invalid SVG: invalid XML character'); }
+  }
+
+  private validateDecodedCharacters(node: Node): void {
+    if (node.nodeValue !== null) this.assertXmlCharacters(node.nodeValue);
+    if (node.nodeType === 1) {
+      const element = node as Element;
+      for (let index = 0; index < element.attributes.length; index += 1) {
+        this.assertXmlCharacters(element.attributes.item(index)!.value);
+      }
+    }
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      this.validateDecodedCharacters(child);
+    }
   }
 
   private readDimension(root: Element, name: string): number {

@@ -26,7 +26,7 @@ export class CommandRegistry {
     ['init', ['init [w] [h]', InitCommand]],
     ['read', ['read <file.svg>', ReadCommand]],
     ['save', ['save [file.svg]', SaveCommand]],
-    ['canvas', ['canvas [w h]', CanvasCommand]],
+    ['canvas', ['canvas [w] [h]', CanvasCommand]],
     ['create', ['create <type> <id> [params...] [in <containerId>]', CreateCommand]],
     ['delete', ['delete <id>', DeleteCommand]],
     ['move', ['move <id> <dx> <dy>', MoveCommand]],

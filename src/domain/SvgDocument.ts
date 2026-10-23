@@ -87,7 +87,7 @@ export class SvgDocument {
   }
 
   ungroup(id: string): number {
-    const group = this.findContainer(id);
+    const group = this.existingContainer(id);
     if (!group.allowsUngroup) throw new Error(`cannot ungroup composite shape: ${id}`);
     const parent = group.parent;
     if (!parent) throw new Error(`cannot ungroup top-level container: ${id}`);
@@ -102,7 +102,7 @@ export class SvgDocument {
   }
 
   addTo(groupId: string, id: string): void {
-    const target = this.findContainer(groupId);
+    const target = this.existingContainer(groupId);
     const shape = this.find(id);
     for (let ancestor: Shape | null = target; ancestor; ancestor = ancestor.parent) {
       if (ancestor === shape) throw new Error(`cannot group a container into its own descendant: ${shape.id}`);
@@ -169,5 +169,11 @@ export class SvgDocument {
     if (!Number.isFinite(width) || !Number.isFinite(height) || width < 0 || height < 0) {
       throw new Error('canvas dimensions must be finite and non-negative');
     }
+  }
+
+  private existingContainer(id: string): ContainerShape {
+    const shape = this.find(id);
+    if (!(shape instanceof ContainerShape)) throw new Error(`not a container: ${id}`);
+    return shape;
   }
 }

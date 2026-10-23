@@ -29,12 +29,12 @@ class EditorFixture {
   }
 }
 
-test('commands require an initialized document, while help and comments work before init', async () => {
+test('commands including help require an initialized document; comments and blank lines are ignored', async () => {
   const fixture = new EditorFixture();
   for (const command of [
     'save a.svg', 'canvas', 'create g g', 'delete g', 'move g 1 2', 'scale g 2',
     'set g fill red', 'group g r', 'ungroup g', 'addto g r', 'front g', 'back g',
-    'tree', 'show g', 'undo', 'redo',
+    'tree', 'show g', 'help', 'undo', 'redo',
   ]) {
     await assert.rejects(fixture.editor.execute(command), {
       message: "no document. use 'init' or 'read' first",
@@ -42,6 +42,7 @@ test('commands require an initialized document, while help and comments work bef
   }
   assert.deepEqual(await fixture.editor.execute('  # create g ignored'), []);
   assert.deepEqual(await fixture.editor.execute('   '), []);
+  await fixture.editor.execute('init');
   const help = (await fixture.editor.execute('help')).join('\n');
   for (const command of ['init', 'read', 'save', 'canvas', 'create', 'delete', 'move', 'scale',
     'set', 'group', 'ungroup', 'addto', 'front', 'back', 'tree', 'show', 'help', 'undo', 'redo']) {

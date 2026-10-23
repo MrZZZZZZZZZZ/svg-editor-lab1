@@ -6,10 +6,12 @@ export class CanvasCommand extends Command {
   readonly #args: CommandArgs;
   constructor(args: CommandArgs) {
     super();
-    if (args.length !== 0 && args.length !== 2) args.invalid();
+    args.expect(0, 2);
     this.#args = args;
   }
   override async execute(editor: Editor): Promise<string[]> {
-    return this.#args.length === 0 ? editor.canvas() : editor.canvas(this.#args.number(0), this.#args.number(1));
+    return this.#args.length === 0 ? editor.canvas() : editor.canvas(
+      this.#args.number(0), this.#args.length === 2 ? this.#args.number(1) : undefined,
+    );
   }
 }

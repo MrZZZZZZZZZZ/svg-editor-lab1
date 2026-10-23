@@ -69,17 +69,20 @@ export class Editor {
 
   canvas(width?: number, height?: number): string[] {
     const document = this.requireDocument();
-    if (width === undefined || height === undefined) return [`canvas ${document.width}x${document.height}`];
+    if (width === undefined && height === undefined) return [`canvas ${document.width}x${document.height}`];
     const next = document.clone();
-    next.resize(width, height);
+    next.resize(width ?? document.width, height ?? document.height);
     this.#document = next;
     this.#history.barrier();
-    return [`canvas resized to ${width}x${height}`];
+    return [`canvas resized to ${next.width}x${next.height}`];
   }
 
   tree(id?: string): string[] { return [this.#tree.format(this.requireDocument(), id)]; }
   show(id: string): string[] { return [this.#show.format(this.requireDocument(), id)]; }
-  help(): string[] { return this.#registry.help(); }
+  help(): string[] {
+    this.requireDocument();
+    return this.#registry.help();
+  }
 
   undo(): string[] {
     this.requireDocument();

@@ -3,7 +3,8 @@
 - Git 仓库：[MrZZZZZZZZZZ/svg-editor-lab1](https://github.com/MrZZZZZZZZZZ/svg-editor-lab1)。
 - 需求依据：[phase_cli_1.md](../phase_cli_1.md)；安装与运行：[工程 README](../README.md)。
 - 验证环境：macOS、Node.js 24.19.0、TypeScript 5.9.3；工程要求 Node.js 22 或更高版本。
-- 当前状态：本阶段功能已实现，类型检查与 43 项测试通过。`box`、动态插件和任意外部 SVG 支持不在本阶段范围内。
+- 当前状态：本阶段功能已实现；2026-10-23 按附件复核并修复边界问题，类型检查与 63 项测试通过。`box`、动态插件和任意外部 SVG 支持不在本阶段范围内。
+- 交付时间：用户确认截止日期为 2026-10-30，期望约 2026-10-28 完成；本轮完成核验后更新最终版本。
 
 ## 一、架构方案
 
@@ -11,7 +12,7 @@
 
 | 模块 | 主要类或接口 | 职责 |
 | --- | --- | --- |
-| `src/domain/` | `Shape`、`ContainerShape`、`Rect`、`Circle`、`Ellipse`、`Line`、`Text`、`Group`、`ShapeFactory`、`SvgDocument` | 封装属性与几何行为，维护有序图形树及唯一 id，校验父子关系和循环，不执行 IO |
+| `src/domain/` | `Shape`、`ContainerShape`、六类图形、`ShapeFactory`、`SvgDocument`、`TransformOperations`、`XmlCharacters` | 封装属性与几何行为，维护有序图形树及唯一 id，校验父子关系、循环和 XML 字符，统一已有变换下的几何操作，不执行 IO |
 | `src/application/` | `Editor`、`CommandRegistry`、`CommandArgs`、`CommandHistory`、`DocumentSnapshot`、`HistoryTransition` | 编排用例、校验参数、管理当前文档和路径、执行命令及撤销重做 |
 | `src/application/commands/` | `Command`、`UndoableCommand` 及每种具体命令 | 命令对象封装一次操作；编辑的应用和恢复各有独立入口 |
 | `src/application/ports/` | `SvgRepository`、`LineTokenizer`、`TreeView`、`ShapeView` | 定义存储、分词与展示契约，由入口注入实现 |
@@ -65,6 +66,8 @@ undo 将命令移入 redo 栈，redo 反向移动；新的成功编辑清空 red
 #### Composite
 
 六类元素继承 `Shape`，`Group` 经 `ContainerShape` 管理有序子节点。move/scale 遍历共同图形契约，不按类型名分支；先验证整棵子树的新几何值，再统一应用，避免溢出部分修改。scale 同乘位置和尺寸，必须是正因子；不缩放样式或文字内容。
+
+已有 SVG 变换下，`TransformOperations` 把每个已有变换 T 同步调整为 A·T·A⁻¹，几何同时按 A 修改；各层相邻的逆变换抵消，整棵子树在所选节点父坐标系中保持一致移动/缩放。无 transform 的元素不新增该属性，类型分派仍只有规定的两处。矩阵数值测试和实际 SVG 栅格平移对比验证了混合嵌套变换的结果。
 
 `set` 支持公共样式、本类型几何与文字内容白名单。容器的样式保存在 `<g>` 上，由 SVG 继承规则渲染，不强制覆盖子节点显式样式。delete 容器移除整棵子树，撤销恢复子树、父链和顺序。
 
@@ -120,6 +123,10 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 | 方案修订 | 草案的 CommandParser、Visitor、id 索引未直接采用；实际改为 CommandArgs/具体命令校验、公共多态契约、前序查找；新增解析/展示 ports 防止反向依赖 | 本报告修订后的架构表与依赖测试 |
 | 长序列验收 | 两个固定种子各执行 129 条编辑，逐步 undo 至空文档，再逐步 redo，每步比较 XML 并检查唯一 id 和父链 | history-property.test.ts |
 | 交互/渲染 | 实际 PTY 检查提示符、中文、错误后继续和 Ctrl-D；回放流程图并静态渲染检查矩形、连线和中文文字 | presentation/Repl.ts；examples/flowchart.commands 与 flowchart.svg |
+| 附件复核 | 用户要求按原附件检查完成情况；复核由 AI 执行，发现混合变换下容器移动、非法 XML 字符往返、只读文件覆盖问题，新增失败场景并修复，不将这些发现写成用户亲自完成的经历 | transform.test.ts、xml-characters.test.ts、file-permissions.test.ts |
+| 验收补全 | 按附件可选参数语法支持 canvas 只给宽度；按错误表统一普通缺失 id 与 create-in 目标文案，help 也遵守先 init/read 的要求；核对全部命令、架构和文档 | requirements.test.ts、editor.test.ts；本节末的逐项核验表 |
+
+协作记录按实际对话与提交记载：用户提供实验要求、创建远程仓库并完成账号侧公钥添加，随后提出实现和复核要求；AI 提供方案、实现、测试及排错支持。方案迭代、边界纠正和验收结果均以实际代码、测试和提交为证据。
 
 ## 三、一致性自查
 
@@ -157,7 +164,7 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 
 标准环境可用 npm run typecheck、npm test、npm run cli。./lab 优先使用系统 Node，缺少时使用本机 Codex 已有运行时。标准用户用 npm install 安装；pnpm 用户可按 pnpm-lock.yaml 冻结安装。
 
-结果：类型检查通过；**43 项测试全部通过，0 失败、0 跳过**。
+结果：类型检查通过；**63 项测试全部通过，0 失败、0 跳过**。
 
 | 测试文件 | 数量 | 覆盖 |
 | --- | --- | --- |
@@ -167,25 +174,51 @@ SVG 输出读取共同的 `attributes/children/textContent`，tree 调用多态 
 | editor.test.ts | 13 | 全命令、屏障、失败原子性、双栈和复杂结构恢复、真实 IO、附件两组会话 |
 | history-property.test.ts | 4 | 两组长序列逐步 undo/redo、失败保留 redo、子树删除后 id 复用 |
 | architecture.test.ts | 2 | 模块边界、类文件约定、无顶层业务自由函数 |
+| transform.test.ts | 6 | 混合嵌套变换、叶子自身变换、父坐标语义、数值失败原子性与实际命令历史往返 |
+| xml-characters.test.ts | 8 | 非法控制字符/代理项、解析后字符、数值引用、合法 emoji 和特殊字符，失败保留文档/路径/双栈 |
+| file-permissions.test.ts | 4 | 只读目标拒绝、权限保持、新文件/错误路径、失败保存的历史与默认路径 |
+| requirements.test.ts | 2 | canvas 单宽参数及屏障、普通缺失 id 与 create-in 目标的规定错误文案 |
 
 测试在临时目录中创建并清理文件，不修改用户任意 SVG。信心来自关键不变量、附件会话和可重复恢复的验证，未提供虚构覆盖率或性能指标。
 
 ### 2. 命令边界
 
-- 无文档时编辑、显示、历史、保存报指定错误；help 作为独立帮助入口可在 init 前使用。
-- init 默认 800×600，仅给宽度时高度默认 600；canvas 无参数查询，修改要求宽高两项。画布尺寸有限且非负，scale 因子为正。
+- 未 init/read 时，编辑、显示（含 help）、历史、保存等命令均报附件指定的无文档错误；空行和注释仍直接忽略。
+- init 默认 800×600，仅给宽度时高度默认 600；canvas 无参数查询，只给宽度时保持当前高度，也可同时给宽高。修改画布尺寸成功后设置 IO 屏障。画布尺寸有限且非负，scale 因子为正。
 - create/group 必须给 id，read 缺 id 时打印规定警告。默认 fill/stroke 不写入，保持 SVG 默认值。
 - 六类图形均支持 in；属性白名单、重复/不存在 id、非法容器、循环、根级解组、未知类型均检查。
 - save 无参数使用当前路径；成功 read 或显式 save 更新路径。失败 IO 不改当前文档、路径或历史。
+- 已有目标文件不可写时 save 报附件指定错误，不利用 rename 绕过只读权限；可写目标的权限位会保留。非法 XML 字符在编辑或读取时被拒绝，写出边界也校验；合法 Unicode 与实体可往返。
 - 批处理也遇错继续，业务错误输出到 stderr，不因单条业务错误退出。验收使用测试，不依靠批处理退出码判断每条命令成功。
 
 ### 3. 支持范围与限制
 
 1. **阶段**：box、动态插件、GUI、任意 SVG/CSS 不在本阶段；未知标签报错。
 2. **导入**：支持六类元素、嵌套 g、注释、文本/CDATA、标准命名空间、数值或 px 非负宽高。根 viewBox 若存在须为 0 0 width height；不支持的根/图形属性明确拒绝。保留的展示属性与 data-* 见 ShapeFactory。
-3. **变换**：原始 transform 保留，编辑仅改局部几何，不展开矩阵；重新分组/解组可能改变继承样式和变换效果，不保证世界坐标或视觉位置不变。CLI 原生创建的 g 不叠加额外 transform。
+3. **变换**：未编辑的 transform 原文保留；编辑以所选节点父坐标系为基准，同步共轭已有变换，保证该子树整体移动/缩放。重新分组/解组改变归属，仍可能改变继承样式和父变换结果。变换表达式长度随编辑增长，暂不进行矩阵正规化；若极小缩放因子导致所需逆数无法表示，会拒绝并保持状态。CLI 原生无变换的图形不额外叠加 transform。
 4. **文本**：仅支持单个 text 的字符串，不支持嵌套 tspan 等富文本；几何不接受百分比等 CSS 单位。
 5. **性能**：前序查询与整文档快照面向本阶段小规模使用，未测大文档、超长历史性能。
+
+### 4. 按附件逐项核验
+
+| 附件要求 | 核验结果与证据 |
+| --- | --- |
+| TypeScript、面向对象、多态、封装、一类一文件 | 实际类层次与 AST 检查通过 |
+| Command 必选，容器和叶子统一操作 | Command/UndoableCommand 与 Composite 实现；模型、编辑器和变换测试通过 |
+| 类型/命令名分派仅两处且标注待重构 | ShapeFactory/CommandRegistry；本报告已列后续注册化取舍 |
+| init/read/save/canvas | 默认画布、自定义/单宽尺寸、真实文件读写、默认路径、失败与屏障测试通过 |
+| 六类 create、in、显式 id 与自动补 id | 工厂、输入与读入测试；预扫描避免后面显式 id 冲突 |
+| delete/move/scale/set | 六类和子树操作、白名单、数值/字符校验、失败原子性测试通过 |
+| group/ungroup/addto/front/back | 相对顺序、父链、循环、顶层解组拒绝、同级绘制顺序与恢复测试通过 |
+| tree/show/help、注释、引号、错误与摘要 | 格式化/分词/REPL 测试，实际 PTY 检查及错误表核对通过 |
+| undo/redo 粒度及 IO 屏障 | 查询不入历史、成功新编辑清 redo、失败保留双栈，两组长序列逐步恢复通过 |
+| 附件第 6 节和 6.1 版本 A | 真实文件与完整会话测试通过；8 元素流程图可回放 |
+| Markdown 位于 doc/README.md，四类指定内容 | 架构方案含 PlantUML、过程记录、一致性自查、质量保证齐备 |
+| AI 协作与代表性讨论/纠正 | 需求提出、方案迭代、边界纠正和验收均有实际对话、代码及提交记录支撑 |
+| Git 远程、真实分步开发、final 标签 | 已有分步历史；本轮修复经测试和文档更新后提交，并核对远程 main/final |
+| 截止前完成 | 用户给出 2026-10-30；最终标签以实际生成时间核对 |
+
+数值变换和 XML 字符规则分别参照 [SVG 2 坐标与变换](https://www.w3.org/TR/SVG2/coords.html)及 [XML 1.0 字符定义](https://www.w3.org/TR/xml/#charsets)。以上结论覆盖附件规定的本阶段范围，不宣称支持完整 SVG 标准。
 
 ## 五、Git 与交付
 
@@ -197,4 +230,4 @@ git show --stat final
 git ls-remote --tags origin final
 ```
 
-标签随最终提交推送远程，包含代码、测试、示例、配置和文档。附件及对话未给实验截止时间，无法判断是否按时提交，应以远程标签实际时间与课程截止时间核对。
+标签随最终提交推送远程，包含代码、测试、示例、配置和文档。截止日期由用户确认是 2026-10-30，期望约 2026-10-28 完成；本轮核验日期为 2026-10-23。上一版本保留为 `final-2026-10-22`，更新后的远程 `final` 和 `main` 指向同一已验收提交。
